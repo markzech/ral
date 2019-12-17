@@ -71,10 +71,11 @@ void TCS34725::setGain(GAIN g){
 
 uint8_t TCS34725::read8(uint8_t reg){
 
+    uint8_t length = 1;
     Wire.beginTransmission(TCS34725_ADDR);
     Wire.write(reg);
     Wire.endTransmission();
-    Wire.requestFrom(TCS34725_ADDR, 1);
+    Wire.requestFrom(TCS34725_ADDR, length);
     return Wire.read();
     
 }
@@ -83,11 +84,13 @@ uint16_t TCS34725::read16(uint8_t reg){
 
     uint16_t regval;
     uint16_t regval_low;
+    uint8_t length = 2;
+
     
     Wire.beginTransmission(TCS34725_ADDR);
     Wire.write(reg);
     Wire.endTransmission();
-    Wire.requestFrom(TCS34725_ADDR, 2);
+    Wire.requestFrom(TCS34725_ADDR, length);
     
     regval_low = Wire.read();
     regval = (Wire.read() << 8);
@@ -114,11 +117,12 @@ void TCS34725::printConfig(){
 }
 
 rgbData_t TCS34725::getRawRGB(){
+
     rgbData_t raw = {
-        .r = (read16(RED_REGISTER_ADDRESS) >> 8),
-        .g = (read16(GREEN_REGISTER_ADDRESS) >> 8),
-        .b = (read16(BLUE_REGISTER_ADDRESS) >> 8),
-        .c = (read16(CLEAR_REGISTER_ADDRESS) >> 8)
+        .r = (read16(RED_REGISTER_ADDRESS)),
+        .g = (read16(GREEN_REGISTER_ADDRESS)),
+        .b = (read16(BLUE_REGISTER_ADDRESS)),
+        .c = (read16(CLEAR_REGISTER_ADDRESS))
     };
     return raw;
 }

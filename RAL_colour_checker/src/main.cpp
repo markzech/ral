@@ -69,7 +69,6 @@ void setup() {
     delay(10);
     clearSerialMonitor();
     
-    
     startWifi();
     Wire.begin();
     t.begin();
@@ -115,6 +114,15 @@ void loop() {
             }else{
                 Serial.println("Publish failed");
             }
+        } else{
+
+            rgbData_t raw = t.getRawRGB();
+            String message = createRGBMessage(raw);
+
+            Serial.println("Not connected to MQTT broker");
+            Serial.print("Message: ");
+            Serial.println(message);
+
         }
         lastMillis = currentMillis;
     }
@@ -187,7 +195,7 @@ String createRGBMessage(rgbData_t rgb){
     String message = header;
     
     char data[50] = {};
-    sprintf(data, "%02x%02x%02x#%d", rgb.r, rgb.g, rgb.b, safeToDB);
+    sprintf(data, "%02x%02x%02x#%d", rgb.r >> 8, rgb.g  >> 8, rgb.b  >> 8, safeToDB);
     message += data;
     
     /*
