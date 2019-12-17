@@ -1,4 +1,7 @@
 #include <Arduino.h>
+#include <PubSubClient.h>
+#include <ESP8266WiFi.h>
+#include "TCS34725.h"
 
 void setup() {
   // put your setup code here, to run once:
