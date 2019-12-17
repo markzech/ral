@@ -1,6 +1,8 @@
 #ifndef __TCS34725__
 #define __TCS34725__
 
+#include "Arduino.h"
+
 constexpr uint8_t TCS34725_ADDR { 0x29 };
 constexpr uint8_t TCS34725_ID { 0x44 };
 
