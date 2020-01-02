@@ -5,6 +5,7 @@
 #include "TCS34725.h"
 #include "dataFormater.h"
 
+// Function prototypes
 void startWifi();
 void recieveData();
 void blinkLed();
@@ -12,46 +13,58 @@ void clearSerialMonitor();
 void updateTime();
 void callback(char* topic, byte* payload, unsigned int length);
 
-const uint8_t switchPin = D5;
-bool lastSafeState = true;
-bool safeToDB = false;
+// HW assignments
+const uint8_t SWITCH_PIN = D5;
 
+// Constants
 const uint32_t STATUS_LED_DELAY_MS = 1000;
 const uint32_t DATA_INTERVAL_MS = 1000;
 const uint32_t WIFI_TIMEOUT_MS = 10;
 const uint32_t WIFI_DELAY_MS = 500;
+const uint32_t BAUDRATE = 115200;
 
+// Timekeeping
 unsigned long currentMillis = 0;
 unsigned long lastMillis = 0;
 unsigned long currentMillisLED = 0;
 unsigned long lastMillisLED = 0;
 
+// WiFi credentials
 const char* SSID = "C02_BPR3_RAL";
-const char* key = "Sc1We2Ze3!";
+const char* WIFI_KEY = "Sc1We2Ze3!";
 
-const char* clientName = "1";
-const String id = "RGB_Sensor_1";
+// Sensor ID
+const char* CLIENT_ID = "1";
+const String SENSOR_ID = "RGB_Sensor_1";
 
-const char* mqqtBroker = "192.168.4.1";
-const char* topic = "device/001/server";
+// MQTT setup
+const char* MQTT_BROKER = "192.168.4.1";
+const char* MQTT_TOPIC = "device/001/server";
+const uint16_t MQTT_PORT = 1883;
 
-TCS34725 t(ATIME::_101MS, GAIN::_16X);
+// State
+bool lastSafeState = true;
+bool safeToDB = false;
+
+// Global objects
+TCS34725 tcs(ATIME::_101MS, GAIN::_16X);
 WiFiClient wifi;
-PubSubClient pbclient(mqqtBroker, 1883, callback, wifi);
+PubSubClient pubSubClient(MQTT_BROKER, MQTT_PORT, callback, wifi);
 DataFormater dataFormater;
 
 void setup() {
 
     pinMode(LED_BUILTIN, OUTPUT);
-    pinMode(switchPin, INPUT_PULLUP);
+    pinMode(SWITCH_PIN, INPUT_PULLUP);
 
-    Serial.begin(115200);
+    Serial.begin(BAUDRATE);
+
     delay(500);
     clearSerialMonitor();
     
     Wire.begin();
-    t.begin();
-    t.printConfig();
+    tcs.begin();
+    tcs.printConfig();
 
     startWifi();
    
@@ -67,9 +80,9 @@ void loop() {
 
     blinkLed();
     dataFormater.updateTime();
-    pbclient.loop();
+    pubSubClient.loop();
 
-    bool currentSafeState = digitalRead(switchPin);
+    bool currentSafeState = digitalRead(SWITCH_PIN);
 
     if(!currentSafeState && lastSafeState ){
         safeToDB = true;
@@ -80,34 +93,31 @@ void loop() {
     
     currentMillis = millis();
     
-    if(currentMillis-lastMillis >= DATA_INTERVAL_MS){
+    if(currentMillis - lastMillis >= DATA_INTERVAL_MS){
         
-        if(pbclient.connected()){
+        if(pubSubClient.connected()){
          
-            rgbData_t raw = t.getRawRGB();
+            rgbData_t raw = tcs.getRawRGB();
             String message = dataFormater.createRGBMessage(raw, safeToDB);
          
             Serial.print("Message: ");
             Serial.println(message);
          
-            if(pbclient.publish(topic, (char*)message.c_str())){
+            if(pubSubClient.publish(MQTT_TOPIC, (char*)message.c_str())){
                 //Serial.println("Publish ok");
             }else{
                 Serial.println("Publish failed");
             }
         } else{
-
-            rgbData_t raw = t.getRawRGB();
+            rgbData_t raw = tcs.getRawRGB();
             String message = dataFormater.createRGBMessage(raw, safeToDB);
 
             Serial.println("Not connected to MQTT broker");
             Serial.print("Message: ");
             Serial.println(message);
-
         }
         lastMillis = currentMillis;
         safeToDB = false;
-
     }
 }
 
@@ -117,7 +127,7 @@ void startWifi(){
     Serial.println(SSID);
     
     WiFi.mode(WIFI_STA);
-    WiFi.begin(SSID, key);
+    WiFi.begin(SSID, WIFI_KEY);
     
     uint32_t connectionTime = 0;
 
@@ -128,21 +138,21 @@ void startWifi(){
         connectionTime += WIFI_DELAY_MS;
         
         if(connectionTime > WIFI_TIMEOUT_MS){
-            Serial.println("Timeout. Could not connect to WiFi");
+            Serial.println("Could not connect to WiFi. Timeout");
             break;
         }
     }
     
     if(WiFi.status() == WL_CONNECTED){
         Serial.println("");
-        Serial.print("Connected to WiFi");
+        Serial.print("Connected to WiFi ");
         Serial.println(SSID);
         Serial.print("IP: ");
         Serial.println(WiFi.localIP());
     }
     
-    if(pbclient.connect(id.c_str())){
-        pbclient.subscribe("device1/#");
+    if(pubSubClient.connect(SENSOR_ID.c_str())){
+        pubSubClient.subscribe("device1/#");
         Serial.println("Connected to MQTT Broker");
     } else{
           Serial.println("Could not connect to MQTT Broker");
@@ -164,23 +174,7 @@ void blinkLed(){
 void clearSerialMonitor(){
     
     Serial.write(0x0C);
-
 }
-/*
-void updateTime(){
-    
-    timeNow = millis()/1000;
-    seconds = timeNow - timeLast;
-    
-    if(seconds == 60){
-        timeLast = timeNow;
-        minutes++;
-    }
-    if(minutes == 60){
-        minutes = 0;
-        hours++;
-    }
-}*/
 
 void callback(char* topic, byte* payload, unsigned int length){
 
@@ -190,5 +184,4 @@ void callback(char* topic, byte* payload, unsigned int length){
         Serial.print((char)payload[i]);
     }
     Serial.println();
-    
 }
