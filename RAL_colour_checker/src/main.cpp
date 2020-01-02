@@ -3,40 +3,28 @@
 #include <Wire.h>
 #include <ESP8266WiFi.h>
 #include "TCS34725.h"
+#include "dataFormater.h"
 
+void startWifi();
+void recieveData();
+void blinkLed();
+void clearSerialMonitor();
+void updateTime();
 void callback(char* topic, byte* payload, unsigned int length);
 
-enum recieveStates{ rsSOF, rsCMD, rsLEN, rsDAT, rsEOF};
-
-TCS34725 t(ATIME::_101MS, GAIN::_16X);
-recieveStates recieveState = rsEOF;
-
-uint8_t cmd = 0;
-uint8_t dataLen = 0;
-uint8_t dataRecCount = 0;
-
 const uint8_t switchPin = D5;
+bool lastSafeState = true;
+bool safeToDB = false;
 
 const uint32_t STATUS_LED_DELAY_MS = 1000;
-uint32_t dataInterval_ms = 1000;
+const uint32_t DATA_INTERVAL_MS = 1000;
+const uint32_t WIFI_TIMEOUT_MS = 10;
+const uint32_t WIFI_DELAY_MS = 500;
+
 unsigned long currentMillis = 0;
 unsigned long lastMillis = 0;
 unsigned long currentMillisLED = 0;
 unsigned long lastMillisLED = 0;
-
-unsigned long timeNow = 0;
-unsigned long timeLast = 0;
-uint8_t hours = 10;
-uint8_t minutes = 00;
-uint8_t seconds = 00;
-
-uint16_t year = 2019;
-uint8_t month = 11;
-uint8_t day = 23;
-
-bool safeToDB = true;
-bool dataValid = false;
-char* recBuf = 0;
 
 const char* SSID = "C02_BPR3_RAL";
 const char* key = "Sc1We2Ze3!";
@@ -47,32 +35,29 @@ const String id = "RGB_Sensor_1";
 const char* mqqtBroker = "192.168.4.1";
 const char* topic = "device/001/server";
 
-const int WiFiTimeoutMS = 20000;
-const int WiFiDelayTimeMS = 500;
-
+TCS34725 t(ATIME::_101MS, GAIN::_16X);
 WiFiClient wifi;
 PubSubClient pbclient(mqqtBroker, 1883, callback, wifi);
-
-void startWifi();
-void recieveData();
-void processRecievedData();
-void blinkLed();
-void clearSerialMonitor();
-void updateTime();
-String createRGBMessage(rgbData_t);
+DataFormater dataFormater;
 
 void setup() {
 
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(switchPin, INPUT_PULLUP);
+
     Serial.begin(115200);
-    delay(10);
+    delay(500);
     clearSerialMonitor();
     
-    startWifi();
     Wire.begin();
     t.begin();
     t.printConfig();
+
+    startWifi();
+   
+    dataFormater.setDate();
+    dataFormater.setTime();
+    dataFormater.printDateTime();
     
     currentMillis = millis();
     lastMillis = currentMillis;
@@ -81,33 +66,29 @@ void setup() {
 void loop() {
 
     blinkLed();
-    updateTime();
+    dataFormater.updateTime();
     pbclient.loop();
-    
-    if(!digitalRead(switchPin)){
+
+    bool currentSafeState = digitalRead(switchPin);
+
+    if(!currentSafeState && lastSafeState ){
         safeToDB = true;
-    }else{
-        safeToDB = false;
+        lastSafeState = false;
+    }else if(currentSafeState){
+            lastSafeState = true;
     }
     
     currentMillis = millis();
     
-    if(currentMillis-lastMillis >= dataInterval_ms){
+    if(currentMillis-lastMillis >= DATA_INTERVAL_MS){
         
         if(pbclient.connected()){
          
             rgbData_t raw = t.getRawRGB();
-            String message = createRGBMessage(raw);
+            String message = dataFormater.createRGBMessage(raw, safeToDB);
          
             Serial.print("Message: ");
             Serial.println(message);
-            /*Serial.println("Raw Values ");
-            Serial.print("R: ");
-            Serial.print(raw.r);
-            Serial.print(" G: ");
-            Serial.print(raw.g);
-            Serial.print(" B: ");
-            Serial.println(raw.b);*/
          
             if(pbclient.publish(topic, (char*)message.c_str())){
                 //Serial.println("Publish ok");
@@ -117,7 +98,7 @@ void loop() {
         } else{
 
             rgbData_t raw = t.getRawRGB();
-            String message = createRGBMessage(raw);
+            String message = dataFormater.createRGBMessage(raw, safeToDB);
 
             Serial.println("Not connected to MQTT broker");
             Serial.print("Message: ");
@@ -125,86 +106,9 @@ void loop() {
 
         }
         lastMillis = currentMillis;
+        safeToDB = false;
+
     }
-    
-    recieveData();
-    safeToDB = false;
-}
-
-void recieveData(){
-    
-    uint8_t rec;
-    
-    if(Serial.available() > 0){
-        rec = Serial.read();
-        Serial.println(rec);
-        
-        switch (recieveState) {
-            case rsEOF:
-                if(rec == _SOF){
-                    recieveState = rsSOF;
-                    Serial.println("SOF recieved");
-                }
-                break;
-                
-            case rsSOF:
-                cmd = rec;
-                recieveState = rsCMD;
-                Serial.print("Command: ");
-                Serial.write(cmd);
-                break;
-            
-            case rsCMD:
-                dataLen = rec;
-                delete [] recBuf;
-                recBuf = new char[dataLen];
-                recieveState = rsLEN;
-                break;
-            
-            case rsLEN:
-            	if(dataRecCount < dataLen){
-            		recBuf[dataRecCount] = rec;
-            		dataRecCount++;
-            	} else{
-            		if(rec == _EOF){
-            			dataValid = true;
-            			processRecievedData();
-            		}else{
-            			dataValid = false;
-                        recieveState = rsEOF;
-            		}
-
-            		cmd = 0;
-            		dataLen = 0;
-            		recieveState = rsEOF;
-            	}
-                break;
-                
-            default:
-                break;
-        }
-    }
-}
-
-String createRGBMessage(rgbData_t rgb){
-    
-    //String message = "01#2019-11-23 09:00:00#";
-    char header[50] = {};
-    sprintf(header, "01#%04d-%02d-%02d %02d:%02d:%02d#", year, month, day, hours, minutes, seconds);
-    
-    String message = header;
-    
-    char data[50] = {};
-    sprintf(data, "%02x%02x%02x#%d", rgb.r >> 8, rgb.g  >> 8, rgb.b  >> 8, safeToDB);
-    message += data;
-    
-    /*
-    message += String((rgb.r >> 8), HEX);
-    message += String((rgb.g >> 8), HEX);
-    message += String((rgb.b >> 8), HEX);
-    */
-    
-    return message;
 }
 
 void startWifi(){
@@ -215,15 +119,15 @@ void startWifi(){
     WiFi.mode(WIFI_STA);
     WiFi.begin(SSID, key);
     
-    int connectionTime = 0;
+    uint32_t connectionTime = 0;
 
     while(WiFi.status() != WL_CONNECTED){
-        delay(WiFiDelayTimeMS);
+        delay(WIFI_DELAY_MS);
         Serial.print(".");
         
-        connectionTime += WiFiDelayTimeMS;
+        connectionTime += WIFI_DELAY_MS;
         
-        if(connectionTime > WiFiTimeoutMS){
+        if(connectionTime > WIFI_TIMEOUT_MS){
             Serial.println("Timeout. Could not connect to WiFi");
             break;
         }
@@ -245,44 +149,6 @@ void startWifi(){
     }
 }
 
-void processRecievedData()
-{
-
-	if(dataValid){
-		switch(cmd){
-			case 0x10:
-				SSID = recBuf;
-				Serial.print("SSID: ");
-        		Serial.println(SSID);
-				break;
-
-			case 0x11:
-				key = recBuf;
-				Serial.print("Network Key: ");
-        		Serial.println(key);
-				break;
-
-			case 0x12:
-				mqqtBroker = recBuf;
-				Serial.print("MQQT Broker: ");
-        		Serial.println(mqqtBroker);
-				break;
-
-			case 0x13:
-				break;
-
-			case 0x14:
-				topic = recBuf;
-				Serial.print("Network Key: ");
-        		Serial.println(key);
-				break;
-
-			default:
-				break;
-		}
-	}
-}
-
 void blinkLed(){
     
     currentMillisLED = millis();
@@ -300,7 +166,7 @@ void clearSerialMonitor(){
     Serial.write(0x0C);
 
 }
-
+/*
 void updateTime(){
     
     timeNow = millis()/1000;
@@ -314,7 +180,7 @@ void updateTime(){
         minutes = 0;
         hours++;
     }
-}
+}*/
 
 void callback(char* topic, byte* payload, unsigned int length){
 

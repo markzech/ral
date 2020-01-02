@@ -109,10 +109,49 @@ void TCS34725::write8(uint8_t reg, uint8_t regval){
 void TCS34725::printConfig(){
     
     Serial.print("Integration Time: ");
-    Serial.println(read8(TIMING_REGISTER_ADDRESS));
+
+    uint8_t integrationTime = read8(TIMING_REGISTER_ADDRESS);
+    switch(integrationTime){
+        case 0xFF:
+            Serial.println("2.4ms");
+            break;
+
+        case 0xF6:
+            Serial.println("24ms");
+            break;
+
+        case 0xD5:
+            Serial.println("101ms");
+            break;
+
+        case 0xC0:
+            Serial.println("154ms");
+            break;
+
+        case 0x00:
+            Serial.println("700ms");
+            break;
+    }
     
     Serial.print("Gain: ");
-    Serial.println(read8(CONTROL_REGISTER_ADDRESS));
+    uint8_t gain = read8(CONTROL_REGISTER_ADDRESS);
+    switch(gain){
+        case 0x00:
+            Serial.println("1");
+            break;
+
+        case 0x01:
+            Serial.println("4");
+            break;
+            
+        case 0x02:
+            Serial.println("16");
+            break;
+
+        case 0x03:
+            Serial.println("60");
+            break;   
+    }
     
 }
 
@@ -125,31 +164,4 @@ rgbData_t TCS34725::getRawRGB(){
         .c = (read16(CLEAR_REGISTER_ADDRESS))
     };
     return raw;
-}
-
-void TCS34725::sendData(command c, char data[], uint8_t length){
-    
-    Serial.write(_SOF);
-    Serial.write(c);
-    Serial.write(length);
-    
-    for(uint8_t i = 0; i < length; i++){
-        Serial.write(data[i]);
-    }
-
-    Serial.write(_EOF);
-    
-}
-
-void TCS34725::sendRGB(rgbData_t rgb){
-    
-    command c = GET_RGB_RAW;
-   
-    char data[] = {
-        (uint8_t)rgb.r, (uint8_t)(rgb.r >> 8),
-        (uint8_t)rgb.g, (uint8_t)(rgb.g >> 8),
-        (uint8_t)rgb.b, (uint8_t)(rgb.b >> 8)
-    };
-    
-    sendData(c, data, sizeof(data));
 }

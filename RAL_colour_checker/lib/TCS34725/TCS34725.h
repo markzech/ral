@@ -41,11 +41,6 @@ enum GAIN: uint8_t{
     _60X = 0x03
 };
 
-enum command: uint8_t {
-    GET_SENSOR_ID = 0x00,
-    GET_RGB_RAW = 0x01
-};
-
 class TCS34725{
     
 public:
@@ -68,7 +63,6 @@ private:
     uint8_t read8(uint8_t reg);
     uint16_t read16(uint8_t reg);
     void write8(uint8_t reg, uint8_t regval);
-    void sendData(command c, char data[], uint8_t length);
     
     uint8_t atime;
     uint8_t gain;
