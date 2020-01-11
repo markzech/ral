@@ -88,7 +88,7 @@ bool lastSafeState = true;
 bool safeToDB = false;
 
 // Global objects
-TCS34725 tcs(ATIME::_101MS, GAIN::_60X);
+TCS34725 tcs(ATIME::_101MS, GAIN::_16X);
 WiFiClient wifi;
 PubSubClient pubSubClient(MQTT_BROKER, MQTT_PORT, callback, wifi);
 Adafruit_SSD1331 display = Adafruit_SSD1331(cs, dc, mosi, sclk, rst);
@@ -113,9 +113,9 @@ void setup() {
 
     startWifi();
    
-    //dataFormater.setDate();
-    //dataFormater.setTime();
-    //dataFormater.printDateTime();
+    dataFormater.setDate();
+    dataFormater.setTime();
+    dataFormater.printDateTime();
     display.fillScreen(WHITE);
 
     currentMillis = millis();
@@ -141,32 +141,25 @@ void loop() {
     }
     
     currentMillis = millis();
-        display.fillScreen(WHITE);
-
-
-    
+       
     if(currentMillis - lastMillis >= DATA_INTERVAL_MS){
         
-        rgbData_t raw = tcs.getProcessedRGB(1.0, 0.8);
+        rgbData_t raw = tcs.getProcessedRGB(1.0, 1.0);
         //updateDisplay(raw);
 
         if(pubSubClient.connected()){
-         
-            //rgbData_t raw = tcs.getRawRGB();
-            //rgbData_t raw = tcs.getProcessedRGB(1.0, 0.8);
+
             String message = dataFormater.createRGBMessage(raw, safeToDB);
          
             Serial.print("Message: ");
             Serial.println(message);
          
             if(pubSubClient.publish(MQTT_TOPIC, (char*)message.c_str())){
-                //Serial.println("Publish ok");
+                Serial.println("Publish ok");
             }else{
                 Serial.println("Publish failed");
             }
         } else{ 
-            //rgbData_t raw = tcs.getRawRGB();
-            //rgbData_t raw = tcs.getProcessedRGB(1.0, 0.8);
             String message = dataFormater.createRGBMessage(raw, safeToDB);
 
             Serial.println("Not connected to MQTT broker");
@@ -252,15 +245,4 @@ void setupDisplay(){
     display.setCursor(17,10);
     display.print("RAL-SCANNER");
     display.drawBitmap(8, 30, myBitmap, 80, 22, BLACK);
-}
-
-void updateDisplay(rgbData_t rgb){
-
-    uint8_t r = rgb.r >> 8;
-    uint8_t g = rgb.g >> 8;
-    uint8_t b = rgb.b >> 8;
-
-    //display.fillScreen(RGB(r, g, b));
-    display.fillScreen(WHITE);
-
 }
