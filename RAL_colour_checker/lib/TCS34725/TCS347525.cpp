@@ -2,8 +2,6 @@
 #include <Wire.h>
 #include <Arduino.h>
 
-// Code
-
 boolean isInitialised = false;
 
 TCS34725::TCS34725(){
@@ -162,6 +160,52 @@ rgbData_t TCS34725::getRawRGB(){
         .g = (read16(GREEN_REGISTER_ADDRESS)),
         .b = (read16(BLUE_REGISTER_ADDRESS)),
         .c = (read16(CLEAR_REGISTER_ADDRESS))
+    };
+    return raw;
+}
+
+rgbData_t TCS34725::getProcessedRGB(float gain, float gamma){
+
+    float max = 65535.0;
+    float red = read16(RED_REGISTER_ADDRESS) * gain;
+    float green = read16(GREEN_REGISTER_ADDRESS) * gain;
+    float blue = read16(BLUE_REGISTER_ADDRESS) * gain;
+    float clear = read16(CLEAR_REGISTER_ADDRESS) * gain;
+
+    Serial.print("Red raw value * gain: ");
+    Serial.println(red);
+    Serial.print("Green raw value * gain: ");
+    Serial.println(green);
+    Serial.print("Blue raw value * gain: ");
+    Serial.println(blue);
+
+    red /= max;
+    green /= max;
+    blue /= max;
+
+    Serial.print("Red / max: ");
+    Serial.println(red);
+    Serial.print("Green / max: ");
+    Serial.println(green);
+    Serial.print("Blue / max: ");
+    Serial.println(blue);
+
+    float red_g = pow(red, gamma) * max;
+    float green_g = pow(green, gamma) * max;
+    float blue_g = pow(blue, gamma) * max;
+
+    Serial.print("Red ^ gamma: ");
+    Serial.println(red_g);
+    Serial.print("Green ^ gamma: ");
+    Serial.println(green_g);
+    Serial.print("Blue ^ gamma: ");
+    Serial.println(blue_g);
+
+    rgbData_t raw = {
+        .r = (uint16_t) red_g,
+        .g = (uint16_t) green_g,
+        .b = (uint16_t) blue_g,
+        .c = (uint16_t) clear
     };
     return raw;
 }

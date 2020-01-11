@@ -16,8 +16,6 @@ constexpr uint8_t RED_REGISTER_ADDRESS {0x96 };
 constexpr uint8_t GREEN_REGISTER_ADDRESS { 0x98 };
 constexpr uint8_t BLUE_REGISTER_ADDRESS { 0x9A };
 
-constexpr uint8_t _SOF { 0xF9 };
-constexpr uint8_t _EOF { 0x0A };
 
 struct rgbData_t {
 	uint16_t r;
@@ -55,6 +53,7 @@ public:
     
     //
 	rgbData_t getRawRGB();
+    rgbData_t getProcessedRGB(float gain, float gamma);
     
     // Kommunikation
     void sendRGB(rgbData_t rgb);

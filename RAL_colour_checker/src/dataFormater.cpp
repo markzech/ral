@@ -102,4 +102,3 @@ void DataFormater::printDateTime(){
     String date = buf;
     Serial.println(date);
 }
-
